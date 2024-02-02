@@ -26,4 +26,4 @@ for file in os.listdir(images_path):
 #     image="/workspaces/llmv_translation/images/1-14_rotated_page-0006.jpg"))
 
 
-dashboard.servable()
+dashboard.show()

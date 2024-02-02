@@ -22,11 +22,6 @@ class OpenAITranslator:
         except FileNotFoundError:
             logging.error(f"File not found: {image_path}")
             return None
-    # TODO: remove        
-    def translate_image(self, base64_image, prompt):
-        # Placeholder for the actual OpenAI call
-        # Replace this with your actual implementation to call the OpenAI API
-        return "Translated text (placeholder) " + str(time.time())
 
     def translate_image(self, base64_image, prompt, max_tokens=1000):
         # base64_image = self.encode_image(image_path)

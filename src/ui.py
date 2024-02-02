@@ -5,7 +5,7 @@ from PIL import Image
 import io
 
 from translate import OpenAITranslator
-from prompt import PLACEHILDER as prompt_placeholder
+from prompt import create_prompt
 
 pn.extension('texteditor')
 
@@ -82,12 +82,21 @@ class TranslationDashboard(pn.template.MaterialTemplate):
         self.title = 'Translation Dashboard'
         self.api_key_input = pn.widgets.PasswordInput(name='API Key', placeholder='Enter OpenAI API key...')
         self.file_input = pn.widgets.FileInput(name='Upload Images', accept='.png,.jpg,.jpeg', multiple=True)
+        self.from_language_input = pn.widgets.Select(name='From Language', options=['English', 'Hebrew', 'Spanish', 'French'])
+        self.to_language_input = pn.widgets.Select(name='To Language', options=['Hebrew', 'English', 'Spanish', 'French'])
         self.file_input.param.watch(self.on_file_input, 'value')
+        self.generate_all_button = pn.widgets.Button(name='Generate All', button_type='primary')
+        self.export_file_name_input = pn.widgets.TextInput(name='Export File Name', value='Translation.txt')
+        self.export_text_button = pn.widgets.Button(name='Export Text', button_type='primary')
         self.sidebar.append(self.api_key_input)
-        # self.sidebar.append(self.file_input)
-        self.sidebar.append(pn.widgets.Button(name='Generate All', button_type='primary'))
+        self.sidebar.append(self.file_input)
+        self.sidebar.append(self.generate_all_button)
+        self.sidebar.append(self.from_language_input)
+        self.sidebar.append(self.to_language_input)
+        self.sidebar.append(pn.Row(self.export_file_name_input, self.export_text_button))
         self.image_text_editors = []
         self.main.append(self.create_dashboard())
+        self.generate_all_button.on_click(self.generate_translation_all)
 
     def on_file_input(self, event):
         for file in self.file_input.value:
@@ -117,6 +126,9 @@ class TranslationDashboard(pn.template.MaterialTemplate):
     def generate_translation(self, event):
         # Find the index of the button that was clicked
         button_index = next((i for i, obj in enumerate(self.panel_objects) if obj[0] is event.obj), None)
+        self.generate_translation_single_text_editor(button_index)
+    
+    def generate_translation_single_text_editor(self, button_index):
         if button_index is not None:
             # Get the corresponding ImageTextEditor object
             editor = self.image_text_editors[button_index]
@@ -126,13 +138,59 @@ class TranslationDashboard(pn.template.MaterialTemplate):
             translator = OpenAITranslator(api_key)
 
             # Create a prompt (placeholder for now)
-            prompt = prompt_placeholder
+            previous_page = button_index - 1 if button_index > 0 else None
+            previous_page_text = self.image_text_editors[previous_page].text if previous_page is not None else None
+            previous_page_text = None if previous_page_text == "Translated text will appear here." else previous_page_text
+            prompt = create_prompt(previous_page_text,
+                                   from_language=self.from_language_input.value,
+                                   to_language=self.to_language_input.value)
 
             # Get the base64 image from the ImageTextEditor object
             base64_image = editor.get_base64_image()
 
             # Call the translate_image function of the translator
-            translated_text = translator.translate_image(base64_image, prompt, max_tokens=3000)
+            self.modal.append("Translating... Editor index: " + str(button_index))
+            self.open_modal()
+            translated_text = translator.translate_image(base64_image, prompt, max_tokens=4000)
+            self.close_modal()
 
             # Set the translated text in the ImageTextEditor's text editor
             editor.set_text(translated_text)  # This will update the text_editor's value
+            
+    def generate_translation_all(self, event):
+        for i in range(len(self.image_text_editors)):
+            self.generate_translation_single_text_editor(i)
+    
+    def export_text(self, event):
+        # Open a file for writing
+        with open(self.export_file_name_input.value, 'w') as file:
+            # Iterate over the image text editors
+            for editor in self.image_text_editors:
+                # Get the text from each editor
+                text = editor.text
+                # check if the text is the default text
+                if text == "Translated text will appear here.":
+                    text = ""
+                # Write the text to the file
+                file.write(text + "\n")
+        
+            
+
+if __name__ == '__main__':
+    import os
+    # Usage example
+    dashboard = TranslationDashboard(collapsed_sidebar=True)
+
+    # Adding editors
+    images_path = '/workspaces/llmv_translation/images'
+
+    for file in os.listdir(images_path):
+        if file.endswith(".jpg") or file.endswith(".png"):
+            dashboard.append_editor(ImageTextEditor(
+                image_object=Image.open(os.path.join(images_path, file))))
+            
+    # dashboard.main.objects[0][1].objects[0].show()
+    dashboard.show()
+    ben = 4
+            
+
